@@ -1,0 +1,11 @@
+{
+  "informational": 250,
+  "needs_person": 80,
+  "resolved": 19.2,
+  "escalated": 67.6,
+  "wrong_shown": 40.7,
+  "needs_person_handed_over": 97.5,
+  "grader_errors": 0,
+  "kb_entries": 24,
+  "cost_usd": 0.0973
+}
