@@ -1,0 +1,17 @@
+{
+  "traffic": 650,
+  "handed_over": 488,
+  "loop": {
+    "dropped_needs_person": 142,
+    "new_candidate": 88,
+    "judge_rejected": 54,
+    "added_demand": 190,
+    "already_covered": 4,
+    "ungrounded_number_not_in_chat": 10
+  },
+  "pending": 88,
+  "cost_usd": {
+    "bot": 0.0469,
+    "judge": 0.6145
+  }
+}

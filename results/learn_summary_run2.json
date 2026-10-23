@@ -1,0 +1,15 @@
+{
+  "traffic": 650,
+  "handed_over": 489,
+  "loop": {
+    "already_judged": 469,
+    "new_candidate": 10,
+    "judge_rejected": 5,
+    "added_demand": 5
+  },
+  "pending": 98,
+  "cost_usd": {
+    "bot": 0.041,
+    "judge": 0.0482
+  }
+}
