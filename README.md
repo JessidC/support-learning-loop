@@ -1,4 +1,5 @@
 # support-learning-loop
+[![tests](https://github.com/JessidC/support-learning-loop/actions/workflows/tests.yml/badge.svg)](https://github.com/JessidC/support-learning-loop/actions/workflows/tests.yml)
 
 A support bot that learns from the agents who take over its chats. When the bot hands a conversation to a person, the agent's reply is the best evidence of what the bot was missing. This loop turns those replies into new knowledge base entries, and an expert approves, edits or rejects every one before the bot can use it.
 
