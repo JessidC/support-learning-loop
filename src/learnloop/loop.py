@@ -9,7 +9,9 @@ For every chat the bot handed over:
      an answer other customers could reuse. If so it writes a generic question and answer, quoting
      the agent turns that support it.
   4. Check the quotes and the numbers against the agent's own words. Anything the judge added that
-     the agent never said sends the item to the rejected pile.
+     the agent never said sends the item to the rejected pile, and so does an answer that asks the
+     customer for account details: the bot cannot look up an account, so that entry teaches it to
+     promise something only a person can do.
   5. Compare with what the KB already knows: already covered is skipped, a repeat adds demand to
      the pending candidate, anything else becomes a new candidate.
 Nothing reaches the KB from here. An expert approves, edits or rejects every candidate (review.py).
@@ -53,6 +55,14 @@ or
 {"reusable": false, "reason": "<short reason>"}"""
 
 NUMBER = re.compile(r"\$?\d+(?:[.,]\d+)?%?")
+# Details only someone with access to the customer's account can use. An entry that tells the
+# customer to provide them describes a case for a person, not an answer the bot can give.
+ACCOUNT = re.compile(r"\b(order (?:id|number)s?|user ?names?|e-?mail address(?:es)?|account (?:id|number)s?|"
+                     r"passwords?|card numbers?|zip ?codes?|shipping address(?:es)?)\b", re.I)
+
+
+def asks_for_account(answer: str) -> bool:
+    return bool(ACCOUNT.search(answer))
 
 
 @dataclass
@@ -89,7 +99,23 @@ def grounded(item: dict, c: Conversation) -> str | None:
     said = set(NUMBER.findall(" ".join(c.agent_turns)))
     if any(n not in said for n in NUMBER.findall(item.get("answer", ""))):
         return "number_not_in_chat"
+    if asks_for_account(item.get("answer", "")):
+        return "needs_account"
     return None
+
+
+def recheck(queue: list[Candidate]) -> list[str]:
+    """Apply the account check to candidates no person has decided on (pending or judge-only).
+
+    Runs no model: it lets an existing queue pick up a check added after it was built.
+    """
+    hit = []
+    for c in queue:
+        undecided = c.status == "pending" or (c.status == "approved" and c.reviewer == "judge-only")
+        if undecided and asks_for_account(c.answer):
+            c.status, c.judge_reason, c.reviewer = "judge_rejected", "needs_account", ""
+            hit.append(c.id)
+    return hit
 
 
 def judge_one(judge: LLM, c: Conversation) -> dict:

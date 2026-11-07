@@ -7,16 +7,16 @@ I run the same kind of loop in production on an ERP support chat, where it is th
 
 ## Results
 
-Measured on 330 held-out chats: 250 the bot could solve with the right knowledge, and 80 that needed a person. Same bot and same model in both runs; only the knowledge base changes. In this run every learned entry was approved by the judge alone (`judge-only`), with no person reading them, so these numbers show the loop without its safety net.
+Measured on 330 held-out chats: 250 the bot could solve with the right knowledge, and 80 that needed a person. Same bot and same model in every run; only the knowledge base changes. No person read the learned entries in these runs: the judge approved them (`judge-only`), and the last column adds the automatic account check described below.
 
-| | Starting KB, 24 entries | After the loop, 122 entries |
-|---|---|---|
-| Resolved: answered and correct | 19.2% | **61.2%** |
-| Handed to a person | 67.6% | **20.8%** |
-| Partial or wrong, among answers shown | 40.7% | 22.7% |
-| Chats that needed a person and were handed over | 97.5% | 91.2% |
+| | Starting KB, 24 entries | After the loop, 122 entries | After the loop + account check, 120 entries |
+|---|---|---|---|
+| Resolved: answered and correct | 19.2% | 61.2% | **58.8%** |
+| Handed to a person | 67.6% | 20.8% | 23.6% |
+| Partial or wrong, among answers shown | 40.7% | 22.7% | 23.0% |
+| Chats that needed a person and were handed over | 97.5% | 91.2% | 91.2% |
 
-Paired on the same chats: 110 fixed, 5 broken, exact McNemar p < 0.0001.
+Paired on the same chats, starting KB against the checked KB: 103 fixed, 4 broken, exact McNemar p < 0.0001. The 2.4-point gap between the last two columns is not significant (4 fixed, 10 broken, p = 0.18).
 
 What the loop did with the 488 chats the bot handed over during learning:
 
@@ -27,9 +27,15 @@ What the loop did with the 488 chats the bot handed over during learning:
 
 Cost: about US$0.75 for learning and US$0.32 for both evaluations.
 
-### What a reviewer would have caught
+### The safety net
 
-- **The bot now answers 5 of the 80 chats that needed a person.** Two trace back to learned refund-policy entries that list what a refund requires ("order ID, username and email"). With those in the KB the bot offered to look up an account it cannot see. Those are the entries the expert step exists to reject.
+The first judge-only run showed what an unreviewed loop gets wrong. Two learned refund-policy entries listed what a refund requires ("order ID, username and email"), and with them in the KB the bot asked a customer for those details to look up a return it cannot see. That is the kind of entry an expert rejects.
+
+So the grounding step now has an account check. An entry whose answer asks the customer for account details (order ID, username, email address, password, card number) is rejected by rule, with no model call. `loop recheck` applies it to an existing queue without touching decisions a person already made. On this queue it caught exactly those two entries, and in the re-run the bot no longer offers to look up an account.
+
+What the check does not cover, and a reviewer still would:
+
+- **7 of the 80 chats that needed a person get an answer, against 2 with the starting KB.** None of them asks for or promises account access. They are out-of-stock complaints and expired promo codes, where the store's agent took an action (filed the complaint, issued a new code) and the bot gives the right general policy without handing over. Catching these is a rule for the bot, not for the KB: hand over complaints and requests for an exception.
 - **Near-duplicates.** The 98 candidates include five about rejected credit cards and four about search. The merge threshold is conservative on purpose: merging two different questions is worse than showing a reviewer two similar ones.
 - **The starting point is weak by design.** Each seed entry comes from one chat, so the bot sometimes answers with a close but different FAQ. That is why partial or wrong answers start at 40.7%.
 
@@ -46,7 +52,7 @@ For every chat the bot handed over:
 1. **Skip what was already judged.** A fingerprint of the agent's turns means a re-run never pays the judge twice for the same content.
 2. **Drop cases that needed a person.** If the agent had to verify identity, refund or change an account, nothing reusable can come out of it. These are dropped by rule, before any model call.
 3. **A judge from another model family reads the agent's turns.** The bot answers with DeepSeek and the judge is Gemini, so the model that answers never grades its own work. The judge decides whether the agent said something other customers could reuse, and if so writes a generic question and answer, quoting the agent sentences that support it.
-4. **Check the judge against the chat.** Every quote must appear in the agent's turns and every number in the answer must be one the agent said. Anything else is rejected.
+4. **Check the judge against the chat.** Every quote must appear in the agent's turns and every number in the answer must be one the agent said. An answer that asks the customer for account details fails too, since the bot cannot look up an account. Any entry that fails is rejected.
 5. **Compare with what the bot already knows.** If the knowledge base already covers the question it is skipped. If a pending candidate asks the same thing, its demand goes up by one. Otherwise it becomes a new candidate.
 6. **An expert decides.** `loop review` walks the queue by demand: approve, edit or reject. Only approved and edited entries reach the knowledge base, and each one records who approved it.
 
@@ -67,7 +73,8 @@ curl -LO https://raw.githubusercontent.com/asappresearch/abcd/master/data/abcd_v
 uv run loop prepare --abcd abcd_v1.1.json.gz
 uv run loop learn                    # bot on the training chats, loop on its handoffs
 uv run loop review --reviewer you    # approve, edit or reject each candidate
-uv run loop publish                  # seed KB + approved entries
+uv run loop recheck                  # re-apply the rule checks to undecided candidates (no model calls)
+uv run loop publish                  # seed KB + approved entries, into state/kb_v1.jsonl (--out to rename)
 uv run loop eval --kb state/kb_v0.jsonl --name before
 uv run loop eval --kb state/kb_v1.jsonl --name after
 uv run loop compare runs/before runs/after
@@ -88,8 +95,8 @@ src/learnloop/
   review.py    the expert step: review, audit, agreement
   evaluate.py  before/after measurement with a grader and an exact McNemar test
 tests/         unit tests, no API calls
-runs/          before/after results behind the table above
-results/       the starting KB, the learned KB and the queue the judge produced
+runs/          the results behind the table above (before, after, after-account-check)
+results/       the starting KB, the learned KBs (kb_v1 judge-only, kb_v2 with the account check) and the queue the judge produced
 ```
 
 ## License

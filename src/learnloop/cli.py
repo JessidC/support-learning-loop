@@ -86,12 +86,21 @@ def cmd_review(a) -> None:
     loop.save_queue(STATE / "queue.jsonl", queue)
 
 
+def cmd_recheck(a) -> None:
+    queue = loop.load_queue(STATE / "queue.jsonl")
+    hit = loop.recheck(queue)
+    loop.save_queue(STATE / "queue.jsonl", queue)
+    print(f"{len(hit)} candidates moved to rejected by the account check: {', '.join(hit) or '-'}")
+
+
 def cmd_publish(a) -> None:
     kb0 = KB.load(STATE / "kb_v0.jsonl")
+    seed = len(kb0.entries)
     new = review.to_entries(loop.load_queue(STATE / "queue.jsonl"))
-    kb0.add(new).save(STATE / "kb_v1.jsonl")
+    out = STATE / a.out
+    kb0.add(new).save(out)
     who = Counter(e.approved_by for e in new)
-    print(f"kb_v1: {len(kb0.entries)} seed + {len(new)} learned entries ({dict(who)})")
+    print(f"{out.name}: {seed} seed + {len(new)} learned entries ({dict(who)})")
 
 
 def cmd_eval(a) -> None:
@@ -138,7 +147,10 @@ def main() -> None:
     s.add_argument("--audit", type=int, default=0, help="blind-label N items to measure the judge")
     s.set_defaults(fn=cmd_review)
 
-    sub.add_parser("publish", help="build kb_v1 from the seed and the approved candidates").set_defaults(fn=cmd_publish)
+    sub.add_parser("recheck", help="apply the account check to candidates no person has decided on").set_defaults(fn=cmd_recheck)
+    s = sub.add_parser("publish", help="build a KB from the seed and the approved candidates")
+    s.add_argument("--out", default="kb_v1.jsonl", help="file name under state/")
+    s.set_defaults(fn=cmd_publish)
     s = sub.add_parser("compare", help="paired before/after comparison")
     s.add_argument("before")
     s.add_argument("after")

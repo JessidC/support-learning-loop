@@ -52,6 +52,18 @@ def test_grounding_rejects_quotes_and_numbers_the_agent_never_said():
     assert loop.grounded({**ok, "evidence": []}, c) == "no_evidence"
 
 
+def test_entries_that_ask_for_account_details_are_rejected():
+    assert loop.asks_for_account("To request a refund, provide your order ID, username and email address.")
+    assert not loop.asks_for_account("Gold members get unlimited returns and free return shipping.")
+    assert not loop.asks_for_account("Promo codes are sent by email every month.")
+    q = [Candidate("a", "q", "Send us your order ID and username.", [], ["1"], status="approved", reviewer="judge-only"),
+         Candidate("b", "q", "Send us your order ID.", [], ["2"], status="approved", reviewer="jarby"),
+         Candidate("c", "q", "Returns are free.", [], ["3"], status="pending")]
+    assert loop.recheck(q) == ["a"]
+    assert q[0].status == "judge_rejected" and q[0].judge_reason == "needs_account"
+    assert q[1].status == "approved"  # a person's decision is never overridden
+
+
 class FakeKB:
     def __init__(self, score):
         self.score = score
